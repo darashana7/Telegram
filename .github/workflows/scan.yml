@@ -1,0 +1,36 @@
+name: Stock Scan Scheduler
+
+on:
+  schedule:
+    # Run at 4 AM IST (10:30 PM UTC previous day) - Pre-market
+    - cron: '30 22 * * 0-4'
+    # Run every hour from 9 AM to 3 PM IST (3:30 AM to 9:30 AM UTC) on weekdays
+    - cron: '30 3-9 * * 1-5'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  scan-batch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Batch Scan
+        run: |
+          # Trigger scan endpoint
+          response=$(curl -s -X GET "https://minervini-stock-bot.vercel.app/api/cron-scan")
+          echo "Scan Response: $response"
+          
+          # If scan is not complete, trigger more batches
+          status=$(echo $response | jq -r '.status // empty')
+          
+          if [ "$status" = "batch_complete" ]; then
+            echo "Batch complete, triggering next batch..."
+            for i in {1..5}; do
+              sleep 10
+              response=$(curl -s -X GET "https://minervini-stock-bot.vercel.app/api/cron-scan")
+              echo "Batch $i Response: $response"
+              status=$(echo $response | jq -r '.status // empty')
+              if [ "$status" = "scan_complete" ]; then
+                echo "Full scan complete!"
+                break
+              fi
+            done
+          fi
