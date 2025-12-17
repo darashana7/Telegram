@@ -1,36 +1,201 @@
-name: Stock Scan Scheduler
+name: Daily Stock Scan
 
 on:
   schedule:
-    # Run at 4 AM IST (10:30 PM UTC previous day) - Pre-market
-    - cron: '30 22 * * 0-4'
-    # Run every hour from 9 AM to 3 PM IST (3:30 AM to 9:30 AM UTC) on weekdays
-    - cron: '30 3-9 * * 1-5'
+    # Run twice daily during market hours (IST)
+    # 10:00 AM IST = 4:30 AM UTC
+    - cron: '30 4 * * 1-5'
+    # 3:30 PM IST = 10:00 AM UTC  
+    - cron: '0 10 * * 1-5'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  scan-batch:
+  full-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
     steps:
-      - name: Trigger Batch Scan
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
         run: |
-          # Trigger scan endpoint
-          response=$(curl -s -X GET "https://minervini-stock-bot.vercel.app/api/cron-scan")
-          echo "Scan Response: $response"
+          pip install yfinance pandas numpy requests
           
-          # If scan is not complete, trigger more batches
-          status=$(echo $response | jq -r '.status // empty')
+      - name: Run Full Scan
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python << 'EOF'
+          import yfinance as yf
+          import pandas as pd
+          import numpy as np
+          import requests
+          import os
+          import json
+          from datetime import datetime
+
+          BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+          CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
+
+          # Minervini criteria thresholds
+          MIN_PCT_ABOVE_LOW = 30
+          MAX_PCT_FROM_HIGH = 25
+
+          def send_telegram(message):
+              """Send message to Telegram"""
+              if not BOT_TOKEN or not CHAT_ID:
+                  print("No Telegram credentials")
+                  return False
+              try:
+                  response = requests.post(
+                      f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                      json={
+                          "chat_id": CHAT_ID,
+                          "text": message,
+                          "parse_mode": "HTML",
+                          "disable_web_page_preview": True
+                      },
+                      timeout=30
+                  )
+                  return response.json().get('ok', False)
+              except Exception as e:
+                  print(f"Telegram error: {e}")
+                  return False
+
+          def get_stocks():
+              """Get NSE stocks list"""
+              try:
+                  with open('data/valid_nse_stocks.json', 'r') as f:
+                      data = json.load(f)
+                      return data.get('valid_stocks', [])[:500]  # Limit to 500 for speed
+              except:
+                  # Fallback list
+                  return [
+                      "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "BHARTIARTL",
+                      "ITC", "SBIN", "LT", "AXISBANK", "MARUTI", "TITAN", "SUNPHARMA",
+                      "BAJFINANCE", "KOTAKBANK", "WIPRO", "HCLTECH", "TATAMOTORS", "M&M",
+                      "ADANIENT", "ASIANPAINT", "BAJAJFINSV", "ULTRACEMCO", "NESTLEIND",
+                      "TATASTEEL", "POWERGRID", "TECHM", "JSWSTEEL", "NTPC", "ONGC"
+                  ]
+
+          def check_stock(symbol):
+              """Check if stock passes 9/9 Minervini criteria"""
+              try:
+                  ticker = yf.Ticker(f"{symbol}.NS")
+                  hist = ticker.history(period="1y")
+                  
+                  if hist.empty or len(hist) < 200:
+                      return None
+                  
+                  close = hist['Close'].values
+                  high = hist['High'].values
+                  low = hist['Low'].values
+                  
+                  current_price = float(close[-1])
+                  high_52w = float(high.max())
+                  low_52w = float(low.min())
+                  
+                  sma_50 = float(np.mean(close[-50:]))
+                  sma_150 = float(np.mean(close[-150:]))
+                  sma_200 = float(np.mean(close[-200:]))
+                  
+                  # 200 SMA trend (current vs 22 days ago)
+                  sma_200_now = float(np.mean(close[-200:]))
+                  sma_200_past = float(np.mean(close[-222:-22]))
+                  sma_trending = sma_200_now > sma_200_past
+                  
+                  pct_above_low = ((current_price - low_52w) / low_52w) * 100
+                  pct_from_high = ((high_52w - current_price) / high_52w) * 100
+                  
+                  criteria = [
+                      current_price > sma_150,
+                      current_price > sma_200,
+                      sma_150 > sma_200,
+                      sma_trending,
+                      sma_50 > sma_150,
+                      sma_50 > sma_200,
+                      current_price > sma_50,
+                      pct_above_low >= MIN_PCT_ABOVE_LOW,
+                      pct_from_high <= MAX_PCT_FROM_HIGH
+                  ]
+                  
+                  score = sum(1 for c in criteria if c)
+                  
+                  if score >= 9:
+                      return {
+                          'symbol': symbol,
+                          'price': round(current_price, 2),
+                          'pct_from_high': round(pct_from_high, 1)
+                      }
+                  return None
+              except:
+                  return None
+
+          # Main scan
+          print("🚀 Starting Minervini Scan...")
+          stocks = get_stocks()
+          print(f"📊 Scanning {len(stocks)} stocks...")
+
+          results = []
+          for i, symbol in enumerate(stocks):
+              if i % 50 == 0:
+                  print(f"Progress: {i}/{len(stocks)}")
+              result = check_stock(symbol)
+              if result:
+                  results.append(result)
+                  print(f"✅ {symbol} PASSES")
+
+          print(f"\n🎯 Found {len(results)} qualifying stocks")
+
+          # Sort by distance from 52w high
+          results.sort(key=lambda x: x['pct_from_high'])
+
+          # Send to Telegram
+          if results:
+              msg = f"🎯 <b>Daily Minervini Scan</b>\n"
+              msg += f"📅 {datetime.now().strftime('%d-%b-%Y %H:%M')}\n\n"
+              msg += f"📊 Scanned: {len(stocks)} stocks\n"
+              msg += f"✅ Found: <b>{len(results)}</b> qualifying stocks\n"
+              msg += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+              
+              for i, r in enumerate(results[:30], 1):
+                  msg += f"{i}. <b>{r['symbol']}</b> ₹{r['price']:,.2f} ({r['pct_from_high']:.1f}% from high)\n"
+              
+              if len(results) > 30:
+                  msg += f"\n...and {len(results) - 30} more stocks"
+              
+              msg += "\n\n✅ All pass 9/9 Minervini criteria"
+              msg += "\n💡 Use /check SYMBOL for details"
+              
+              send_telegram(msg)
+              print("📤 Sent to Telegram!")
+          else:
+              send_telegram("📊 <b>Daily Scan Complete</b>\n\nNo stocks currently meet all 9 Minervini criteria.")
+              print("📤 No qualifying stocks found")
+
+          # Save results to file
+          with open('data/scan_results.json', 'w') as f:
+              json.dump({
+                  'timestamp': datetime.now().isoformat(),
+                  'total_scanned': len(stocks),
+                  'qualifying_count': len(results),
+                  'results': results
+              }, f, indent=2)
+
+          print("💾 Results saved!")
+          EOF
           
-          if [ "$status" = "batch_complete" ]; then
-            echo "Batch complete, triggering next batch..."
-            for i in {1..5}; do
-              sleep 10
-              response=$(curl -s -X GET "https://minervini-stock-bot.vercel.app/api/cron-scan")
-              echo "Batch $i Response: $response"
-              status=$(echo $response | jq -r '.status // empty')
-              if [ "$status" = "scan_complete" ]; then
-                echo "Full scan complete!"
-                break
-              fi
-            done
-          fi
+      - name: Commit scan results
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/scan_results.json || true
+          git diff --staged --quiet || git commit -m "Auto-update scan results $(date +'%Y-%m-%d')"
+          git push || true

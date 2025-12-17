@@ -254,16 +254,41 @@ def kv_get(key: str):
 
 
 def handle_list(chat_id: str) -> str:
-    """Handle /list command - show cached scan results from KV"""
-    # Try to get results from KV
-    results = kv_get("scan_results")
-    last_scan = kv_get("last_scan_complete")
+    """Handle /list command - show cached scan results from file"""
+    # Try to load scan results from JSON file
+    results = None
+    last_scan = None
+    
+    try:
+        scan_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'scan_results.json')
+        with open(scan_file, 'r') as f:
+            data = json.load(f)
+            results = data.get('results', [])
+            last_scan = data.get('timestamp', '')
+    except Exception as e:
+        print(f"Error loading scan results: {e}")
+    
+    # Also try fullscan/scanall results if available
+    if not results:
+        try:
+            scan_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'scan_results.json')
+            with open(scan_file, 'r') as f:
+                data = json.load(f)
+                # Check for scanall or fullscan
+                if 'scanall' in data:
+                    results = data['scanall'].get('results', [])
+                    last_scan = data['scanall'].get('timestamp', '')
+                elif 'fullscan' in data:
+                    results = data['fullscan'].get('results', [])
+                    last_scan = data['fullscan'].get('timestamp', '')
+        except:
+            pass
     
     if not results:
         return """
 📋 <b>No Scan Results Available</b>
 
-Scans run automatically every hour during market hours.
+Scans run automatically twice daily (10 AM & 3:30 PM IST).
 
 💡 While waiting, you can:
 • /check SYMBOL - Check individual stocks
@@ -273,17 +298,30 @@ Scans run automatically every hour during market hours.
 RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK
         """.strip()
     
+    # Format timestamp
+    time_str = ""
+    if last_scan:
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(last_scan.replace('Z', '+00:00'))
+            time_str = dt.strftime("%d-%b-%Y %H:%M")
+        except:
+            time_str = last_scan[:16]
+    
     # Format results
     message = f"📋 <b>Qualifying Stocks (9/9 Criteria)</b>\n\n"
-    if last_scan:
-        message += f"🕐 Last scan: {last_scan[:16]}\n"
+    if time_str:
+        message += f"🕐 Last scan: {time_str}\n"
     message += f"✅ Found: {len(results)} stocks\n\n"
     
     for i, r in enumerate(results[:25], 1):
         symbol = r.get('symbol', 'N/A')
-        price = r.get('price', 0)
+        price = r.get('price', r.get('current_price', 0))
         pct_from_high = r.get('pct_from_high', 0)
-        message += f"{i}. <b>{symbol}</b> ₹{price:,.2f} ({pct_from_high:.1f}% from high)\n"
+        message += f"{i}. <b>{symbol}</b> ₹{price:,.2f}"
+        if pct_from_high:
+            message += f" ({pct_from_high:.1f}% from high)"
+        message += "\n"
     
     if len(results) > 25:
         message += f"\n...and {len(results) - 25} more stocks"
