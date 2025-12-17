@@ -1,0 +1,11 @@
+{
+  "fullscan": {
+    "timestamp": "2025-12-17T11:36:16.471608",
+    "total_scanned": 517,
+    "qualifying_count": 83,
+    "results": [
+      {
+        "symbol": "KIRLOSENG",
+        "name": "KIRLOSENG",
+        "current_price": 1284.2,
+        "score": 

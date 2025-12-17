@@ -35,16 +35,39 @@ def save_scan_results(scan_type: str, results: list, total_scanned: int):
             data = {}
     
     # Convert results to serializable format
+    def to_python_type(val):
+        """Convert numpy types to native Python types"""
+        import numpy as np
+        if isinstance(val, (np.integer, np.int64, np.int32)):
+            return int(val)
+        elif isinstance(val, (np.floating, np.float64, np.float32)):
+            return float(val)
+        elif isinstance(val, np.ndarray):
+            return val.tolist()
+        elif isinstance(val, bool):
+            return bool(val)
+        return val
+    
     results_data = []
     for r in results:
+        # Convert metrics dict with proper type handling
+        metrics_clean = {}
+        for k, v in r.metrics.items():
+            metrics_clean[k] = to_python_type(v)
+        
+        # Convert criteria dict (boolean values)
+        criteria_clean = {}
+        for k, v in r.criteria.items():
+            criteria_clean[k] = bool(v)
+        
         results_data.append({
-            'symbol': r.symbol,
-            'name': r.name if hasattr(r, 'name') else '',
+            'symbol': str(r.symbol),
+            'name': str(r.name) if hasattr(r, 'name') else '',
             'current_price': float(r.current_price),
-            'score': r.score,
-            'passes_all': r.passes_all,
-            'criteria': r.criteria,
-            'metrics': {k: float(v) if isinstance(v, (int, float)) else v for k, v in r.metrics.items()}
+            'score': int(r.score),
+            'passes_all': bool(r.passes_all),
+            'criteria': criteria_clean,
+            'metrics': metrics_clean
         })
     
     # Update data for this scan type

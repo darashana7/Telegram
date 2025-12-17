@@ -262,12 +262,12 @@ class StockDataFetcher:
             high_prices = hist['High'].values
             low_prices = hist['Low'].values
             
-            # Calculate key values
+            # Calculate key values - explicitly cast to Python float
             current_price = float(close_prices[-1])
             week_52_high = float(high_prices.max())
             week_52_low = float(low_prices.min())
             
-            # Fast SMA calculations using numpy
+            # Fast SMA calculations using numpy - cast to Python float
             sma_50 = float(np.mean(close_prices[-50:])) if len(close_prices) >= 50 else None
             sma_150 = float(np.mean(close_prices[-150:])) if len(close_prices) >= 150 else None
             sma_200 = float(np.mean(close_prices[-200:])) if len(close_prices) >= 200 else None
@@ -275,27 +275,28 @@ class StockDataFetcher:
             # Use symbol as name (skip slow API call)
             name = symbol
             
-            # Volume calculations
+            # Volume calculations - explicitly cast to Python int
             volume = 0
             avg_volume_20d = 0
             if 'Volume' in hist.columns:
                 vol_values = hist['Volume'].values
-                volume = int(vol_values[-1])
-                avg_volume_20d = int(np.mean(vol_values[-20:]))
+                volume = int(float(vol_values[-1]))  # Cast through float first for numpy compatibility
+                avg_volume_20d = int(float(np.mean(vol_values[-20:])))
             
+            # Round and return - all values are native Python types now
             return {
-                "symbol": symbol,
-                "name": name,
-                "current_price": round(current_price, 2),
-                "week_52_high": round(week_52_high, 2),
-                "week_52_low": round(week_52_low, 2),
-                "sma_50": round(sma_50, 2) if sma_50 else None,
-                "sma_150": round(sma_150, 2) if sma_150 else None,
-                "sma_200": round(sma_200, 2) if sma_200 else None,
-                "percent_from_52w_high": round(((week_52_high - current_price) / week_52_high) * 100, 2),
-                "percent_above_52w_low": round(((current_price - week_52_low) / week_52_low) * 100, 2),
-                "volume": volume,
-                "avg_volume_20d": avg_volume_20d,
+                "symbol": str(symbol),
+                "name": str(name),
+                "current_price": float(round(current_price, 2)),
+                "week_52_high": float(round(week_52_high, 2)),
+                "week_52_low": float(round(week_52_low, 2)),
+                "sma_50": float(round(sma_50, 2)) if sma_50 else None,
+                "sma_150": float(round(sma_150, 2)) if sma_150 else None,
+                "sma_200": float(round(sma_200, 2)) if sma_200 else None,
+                "percent_from_52w_high": float(round(((week_52_high - current_price) / week_52_high) * 100, 2)),
+                "percent_above_52w_low": float(round(((current_price - week_52_low) / week_52_low) * 100, 2)),
+                "volume": int(volume),
+                "avg_volume_20d": int(avg_volume_20d),
             }
             
         except Exception as e:
