@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import requests
 
-# Environment variables
-BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+# Environment variables with fallback
+BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '') or '8550797252:AAG_P9X-9RxOQyIz-N2LAHiGJhnBKzAF5W8'
 CHAT_IDS = os.environ.get('TELEGRAM_CHAT_IDS', '').split(',')
 
 # Telegram API base
