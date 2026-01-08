@@ -122,7 +122,25 @@ def scan():
 @app.route('/api/status')
 def status():
     """Get current scan status"""
-    return jsonify(scan_state)
+    # Convert scan_state to JSON-safe format
+    safe_state = {
+        "status": scan_state.get("status", "idle"),
+        "progress": int(scan_state.get("progress", 0)),
+        "total": int(scan_state.get("total", 0)),
+        "last_scan": scan_state.get("last_scan"),
+        "is_scanning": bool(scan_state.get("is_scanning", False)),
+        "results": []
+    }
+    
+    # Safely convert results
+    for r in scan_state.get("results", []):
+        safe_state["results"].append({
+            "symbol": str(r.get("symbol", "")),
+            "price": float(r.get("price", 0)),
+            "score": int(r.get("score", 0))
+        })
+    
+    return jsonify(safe_state)
 
 
 @app.route('/api/results')
@@ -179,9 +197,9 @@ def run_full_scan():
                 result = screener.check_trend_template(symbol)
                 if result and result.passes_all:
                     results.append({
-                        'symbol': result.symbol,
-                        'price': round(result.current_price, 2),
-                        'score': result.score
+                        'symbol': str(result.symbol),
+                        'price': float(round(to_python_type(result.current_price), 2)),
+                        'score': int(to_python_type(result.score))
                     })
             except:
                 pass
