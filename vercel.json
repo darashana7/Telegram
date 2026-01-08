@@ -3,7 +3,17 @@
     "builds": [
         {
             "src": "api/**/*.py",
-            "use": "@vercel/python"
+            "use": "@vercel/python",
+            "config": {
+                "includeFiles": [
+                    "data/**",
+                    "src/**"
+                ]
+            }
+        },
+        {
+            "src": "public/**",
+            "use": "@vercel/static"
         }
     ],
     "routes": [
@@ -26,6 +36,24 @@
         {
             "src": "/api/cron-scan",
             "dest": "/api/cron-scan.py"
+        },
+        {
+            "src": "/styles.css",
+            "dest": "/public/styles.css"
+        },
+        {
+            "src": "/app.js",
+            "dest": "/public/app.js"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/public/index.html"
+        }
+    ],
+    "crons": [
+        {
+            "path": "/api/cron-scan",
+            "schedule": "*/10 * * * *"
         }
     ]
 }

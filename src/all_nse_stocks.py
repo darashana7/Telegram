@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Path to CSV file
 CSV_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
-                        "India_Stock_Market_Tracker_v2.0 - Sheet8 (1).csv")
+                        "data", "nse_stocks.csv")
 
 def load_stocks_from_csv():
     """Load all NSE stock symbols from CSV file"""

@@ -354,6 +354,46 @@ BHARTIARTL, ITC, SBIN, LT, AXISBANK
     """.strip()
 
 
+def kv_set(key: str, value, ex: int = None):
+    """Set value in Redis"""
+    REDIS_URL = os.environ.get('REDIS_URL', '')
+    if not REDIS_URL:
+        return False
+    try:
+        import redis
+        r = redis.from_url(REDIS_URL)
+        value_str = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+        if ex:
+            r.setex(key, ex, value_str)
+        else:
+            r.set(key, value_str)
+        return True
+    except Exception as e:
+        print(f"Redis SET error: {e}")
+        return False
+
+
+def handle_scan_all(chat_id: str) -> str:
+    """Handle /scanall command - initiate background full scan"""
+    # Reset scan state
+    if kv_set("scan_offset", 0) and kv_set("scan_results", []):
+        return """
+🔍 <b>Full Scan Initiated</b>
+
+I have queued a full scan of all ~2000 NSE stocks.
+This will run in the background.
+
+<b>Progress:</b>
+• Stocks: All NSE (~2000)
+• Time: ~20-40 mins (depending on queue)
+• You will receive a full report when complete.
+
+You can check progress occasionally with /status (coming soon) or just wait for the notification!
+        """.strip()
+    else:
+        return "❌ Error initiating scan. Database connection failed."
+
+
 def process_update(update: dict) -> None:
     """Process incoming Telegram update"""
     try:
@@ -374,7 +414,9 @@ def process_update(update: dict) -> None:
                 response = handle_check(chat_id, symbol)
             else:
                 response = "❌ Please provide a stock symbol.\nExample: /check RELIANCE"
-        elif text.startswith('/scan') or text.startswith('/fullscan') or text.startswith('/scanall'):
+        elif text.startswith('/scanall'):
+            response = handle_scan_all(chat_id)
+        elif text.startswith('/scan') or text.startswith('/fullscan'):
             response = handle_scan_quick(chat_id)
         elif text.startswith('/nse'):
             response = """
@@ -388,7 +430,7 @@ Use /check SYMBOL to check any stock with all 9 Minervini criteria.
 • LT, AXISBANK, MARUTI, TITAN
 • SUNPHARMA, BAJFINANCE, KOTAKBANK
 
-For full list & scanning, run the local bot.
+To scan all 2000+ stocks, use /scanall
             """.strip()
         elif text.startswith('/list'):
             response = handle_list(chat_id)

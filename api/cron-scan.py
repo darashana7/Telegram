@@ -71,14 +71,15 @@ def send_telegram(message: str) -> bool:
     return success
 
 
-# Simple KV operations using Redis
+# Robust KV operations
 def kv_get(key: str):
     """Get value from Redis"""
-    r = get_redis()
-    if not r:
-        print("Redis not available")
+    REDIS_URL = os.environ.get('REDIS_URL', '')
+    if not REDIS_URL:
         return None
     try:
+        import redis
+        r = redis.from_url(REDIS_URL)
         value = r.get(key)
         if value:
             try:
@@ -93,11 +94,12 @@ def kv_get(key: str):
 
 def kv_set(key: str, value, ex: int = None):
     """Set value in Redis"""
-    r = get_redis()
-    if not r:
-        print("Redis not available for SET")
+    REDIS_URL = os.environ.get('REDIS_URL', '')
+    if not REDIS_URL:
         return False
     try:
+        import redis
+        r = redis.from_url(REDIS_URL)
         value_str = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
         if ex:
             r.setex(key, ex, value_str)
@@ -109,26 +111,27 @@ def kv_set(key: str, value, ex: int = None):
         return False
 
 
+
 def get_all_stocks() -> list:
     """Get list of all NSE stocks to scan"""
-    # Try to load from validated stocks file first
-    try:
-        data_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'valid_nse_stocks.json')
-        with open(data_path, 'r') as f:
-            data = json.load(f)
-            return data.get('valid_stocks', [])
-    except:
-        pass
-    
-    # Fallback to top 500 stocks
+    # 1. Try to get full list from CSV (Best source ~2000 stocks)
     try:
         sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        from src.all_nse_stocks import get_all_nse_stocks
+        stocks = get_all_nse_stocks()
+        if stocks and len(stocks) > 1000:
+            return stocks
+    except Exception as e:
+        print(f"Error loading full list: {e}")
+
+    # 2. Fallback to Nifty 500 list
+    try:
         from src.stock_list import get_nse_stock_list
         return get_nse_stock_list()
     except:
         pass
     
-    # Final fallback - top stocks
+    # 3. Final fallback - top stocks
     return [
         "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "BHARTIARTL", 
         "ITC", "SBIN", "LT", "AXISBANK", "MARUTI", "TITAN", "SUNPHARMA",
@@ -141,7 +144,13 @@ def get_all_stocks() -> list:
 def check_stock_quick(symbol: str) -> dict:
     """Quick check if stock passes Minervini criteria"""
     try:
-        ticker = yf.Ticker(f"{symbol}.NS")
+        # Append .NS if missing
+        if not symbol.endswith('.NS'):
+            ticker_symbol = f"{symbol}.NS"
+        else:
+            ticker_symbol = symbol
+            
+        ticker = yf.Ticker(ticker_symbol)
         hist = ticker.history(period="1y")
         
         if hist.empty or len(hist) < 200:
@@ -177,7 +186,8 @@ def check_stock_quick(symbol: str) -> dict:
         
         score = sum(1 for v in criteria.values() if v)
         
-        if score >= 9:  # Only return perfect matches
+        # Return result if score is high enough (e.g. 9/9)
+        if score >= 9:
             return {
                 'symbol': symbol,
                 'price': round(float(current_price), 2),
@@ -195,7 +205,10 @@ def check_stock_quick(symbol: str) -> dict:
 
 
 def run_batch_scan():
-    """Run a batch scan of stocks"""
+    """Run a batch scan of stocks with time limit"""
+    start_time = time.time()
+    MAX_DURATION = 9  # Seconds (safe for Free tier 10s limit)
+    
     if not yf:
         return {"error": "yfinance not available"}
     
@@ -209,68 +222,84 @@ def run_batch_scan():
     
     # Get current results
     current_results = kv_get("scan_results") or []
-    
-    # Check if we're starting a new scan
-    if offset == 0:
+    if not isinstance(current_results, list):
         current_results = []
     
-    # Get batch
-    batch = all_stocks[offset:offset + BATCH_SIZE]
+    # Check if we should start a new scan
+    if offset == 0:
+        # Check last scan time to prevent spamming
+        last_complete = kv_get("last_scan_complete")
+        if last_complete:
+            try:
+                last_dt = datetime.fromisoformat(last_complete)
+                hours_diff = (datetime.now() - last_dt).total_seconds() / 3600
+                if hours_diff < 4:  # Wait at least 4 hours between full scans
+                    return {
+                        "status": "waiting",
+                        "message": f"Last scan was {hours_diff:.1f} hours ago. Waiting for 4h cooldown."
+                    }
+            except:
+                pass
+        
+        # Start new scan
+        current_results = []
     
-    if not batch:
-        # Scan complete - reset
-        kv_set("scan_offset", 0)
-        kv_set("last_scan_complete", datetime.now().isoformat())
-        return {
-            "status": "scan_complete",
-            "total_stocks": total,
-            "qualifying_stocks": len(current_results),
-            "results": current_results
-        }
-    
-    # Scan batch
+    scanned_count = 0
     new_results = []
-    scanned = 0
-    for symbol in batch:
-        result = check_stock_quick(symbol)
-        if result:
-            new_results.append(result)
-        scanned += 1
+    
+    # Process stocks until timeout
+    while time.time() - start_time < MAX_DURATION and offset < total:
+        symbol = all_stocks[offset]
+        
+        # Skip if symbol is bad
+        if symbol:
+            result = check_stock_quick(symbol)
+            if result:
+                new_results.append(result)
+        
+        offset += 1
+        scanned_count += 1
     
     # Merge results
     all_results = current_results + new_results
     
-    # Update offset
-    new_offset = offset + BATCH_SIZE
-    is_complete = new_offset >= total
+    # Check completion
+    is_complete = offset >= total
     
     if is_complete:
-        new_offset = 0
+        offset = 0 # Reset for next cycle
         kv_set("last_scan_complete", datetime.now().isoformat())
         
-        # Send Telegram notification if we found stocks
+        # Format and send results using telegram
         if all_results:
             msg = f"🎯 <b>Scan Complete!</b>\n\n"
             msg += f"📊 Scanned: {total} stocks\n"
             msg += f"✅ Found: {len(all_results)} qualifying stocks\n\n"
-            for r in all_results[:10]:
-                msg += f"• <b>{r['symbol']}</b> ₹{r['price']:,.2f}\n"
-            if len(all_results) > 10:
-                msg += f"\n...and {len(all_results) - 10} more"
+            
+            # Show top 15 results
+            for r in all_results[:15]:
+                price = r.get('price', 0)
+                msg += f"• <b>{r['symbol']}</b> ₹{price:,.2f}\n"
+            
+            if len(all_results) > 15:
+                msg += f"\n...and {len(all_results) - 15} more. Use /list to see all."
+                
             send_telegram(msg)
-    
+        else:
+            send_telegram(f"🎯 <b>Scan Complete!</b>\nScanned {total} stocks. No matches found.")
+            
     # Save state
-    kv_set("scan_offset", new_offset)
+    kv_set("scan_offset", offset)
     kv_set("scan_results", all_results)
     
     return {
-        "status": "batch_complete" if not is_complete else "scan_complete",
-        "batch": f"{offset+1}-{min(offset+BATCH_SIZE, total)}/{total}",
-        "scanned": scanned,
+        "status": "partial_complete" if not is_complete else "scan_complete",
+        "processed": scanned_count,
+        "offset": offset,
+        "total": total,
+        "found_total": len(all_results),
         "found_in_batch": len(new_results),
-        "total_found": len(all_results),
-        "next_offset": new_offset,
-        "is_complete": is_complete
+        "next_offset": offset
     }
 
 

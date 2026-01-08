@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minervini Stock Screener | NSE Stock Scanner</title>
+    <meta name="description" content="Advanced NSE stock screener using Mark Minervini's Trend Template for identifying Stage 2 uptrend stocks. Real-time scanning with 9-point criteria.">
+    <meta name="keywords" content="stock screener, minervini, NSE, India stocks, trend template, stage 2 stocks">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="gradient-orb orb-3"></div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3v18h18"/>
+                        <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <h1>Minervini Screener</h1>
+                    <span class="tagline">NSE Stock Scanner</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="status-badge" id="health-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+                <a href="https://t.me/YourBot" class="telegram-btn" target="_blank">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                    </svg>
+                    Telegram Bot
+                </a>
+            </div>
+        </header>
+
+        <!-- Stats Cards -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <div class="stat-icon green">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Qualifying Stocks</span>
+                    <span class="stat-value" id="qualifying-count">--</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon blue">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Last Scan</span>
+                    <span class="stat-value" id="last-scan">--</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon purple">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="1" x2="12" y2="23"/>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Total Stocks</span>
+                    <span class="stat-value" id="total-stocks">2000+</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon orange">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Criteria Score</span>
+                    <span class="stat-value">9/9</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Quick Scan Section -->
+            <section class="section scan-section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        Quick Scan
+                    </h2>
+                    <span class="section-badge">Real-time Analysis</span>
+                </div>
+                
+                <div class="scan-form glass-card">
+                    <div class="input-group">
+                        <label for="symbols-input">Enter Stock Symbols</label>
+                        <div class="input-wrapper">
+                            <input 
+                                type="text" 
+                                id="symbols-input" 
+                                placeholder="e.g., RELIANCE, TCS, INFY, HDFCBANK" 
+                                value="RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK"
+                            >
+                            <button class="scan-btn" id="scan-btn" onclick="scanStocks()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="5 3 19 12 5 21 5 3"/>
+                                </svg>
+                                Scan Now
+                            </button>
+                        </div>
+                        <span class="input-hint">Separate multiple symbols with commas (max 10)</span>
+                    </div>
+                    
+                    <!-- Preset Buttons -->
+                    <div class="preset-buttons">
+                        <button class="preset-btn" onclick="setPreset('nifty50')">Nifty 50</button>
+                        <button class="preset-btn" onclick="setPreset('banknifty')">Bank Nifty</button>
+                        <button class="preset-btn" onclick="setPreset('it')">IT Stocks</button>
+                        <button class="preset-btn" onclick="setPreset('pharma')">Pharma</button>
+                        <button class="preset-btn" onclick="setPreset('auto')">Auto</button>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading-container" id="loading-container" style="display: none;">
+                    <div class="loader">
+                        <div class="loader-ring"></div>
+                        <span class="loader-text">Analyzing stocks...</span>
+                    </div>
+                </div>
+
+                <!-- Scan Results -->
+                <div class="results-container" id="results-container" style="display: none;">
+                    <div class="results-header">
+                        <h3>Scan Results</h3>
+                        <div class="results-meta">
+                            <span id="scanned-count">0</span> scanned · 
+                            <span id="passing-count">0</span> passing
+                        </div>
+                    </div>
+                    <div class="stock-cards" id="stock-cards">
+                        <!-- Cards will be inserted here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Criteria Explanation -->
+            <section class="section criteria-section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                        Minervini's 9-Point Criteria
+                    </h2>
+                </div>
+                
+                <div class="criteria-grid">
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">1</div>
+                        <div class="criteria-content">
+                            <h4>Price > 150 SMA</h4>
+                            <p>Current price must be above the 150-day simple moving average</p>
+                        </div>
+                    </div>
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">2</div>
+                        <div class="criteria-content">
+                            <h4>Price > 200 SMA</h4>
+                            <p>Current price must be above the 200-day simple moving average</p>
+                        </div>
+                    </div>
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">3</div>
+                        <div class="criteria-content">
+                            <h4>150 SMA > 200 SMA</h4>
+                            <p>The 150-day SMA must be greater than the 200-day SMA</p>
+                        </div>
+                    </div>
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">4</div>
+                        <div class="criteria-content">
+                            <h4>200 SMA Trending Up</h4>
+                            <p>The 200-day SMA must be in an uptrend for at least 1 month</p>
+                        </div>
+                    </div>
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">5</div>
+                        <div class="criteria-content">
+                            <h4>50 SMA > 150 SMA</h4>
+                            <p>The 50-day SMA must be above the 150-day SMA</p>
+                        </div>
+                    </div>
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">6</div>
+                        <div class="criteria-content">
+                            <h4>50 SMA > 200 SMA</h4>
+                            <p>The 50-day SMA must be above the 200-day SMA</p>
+                        </div>
+                    </div>
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">7</div>
+                        <div class="criteria-content">
+                            <h4>Price > 50 SMA</h4>
+                            <p>Current price must be above the 50-day simple moving average</p>
+                        </div>
+                    </div>
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">8</div>
+                        <div class="criteria-content">
+                            <h4>≥30% Above 52W Low</h4>
+                            <p>Price should be at least 30% above the 52-week low</p>
+                        </div>
+                    </div>
+                    <div class="criteria-card glass-card">
+                        <div class="criteria-number">9</div>
+                        <div class="criteria-content">
+                            <h4>≤25% From 52W High</h4>
+                            <p>Price should be within 25% of the 52-week high</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- API Endpoints Section -->
+            <section class="section api-section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="16 18 22 12 16 6"/>
+                            <polyline points="8 6 2 12 8 18"/>
+                        </svg>
+                        API Endpoints
+                    </h2>
+                </div>
+                
+                <div class="api-grid">
+                    <div class="api-card glass-card">
+                        <div class="api-method get">GET</div>
+                        <div class="api-info">
+                            <code>/api/health</code>
+                            <p>Health check endpoint</p>
+                        </div>
+                        <button class="api-test-btn" onclick="testEndpoint('/api/health')">Test</button>
+                    </div>
+                    <div class="api-card glass-card">
+                        <div class="api-method get">GET</div>
+                        <div class="api-info">
+                            <code>/api/scan?symbols=RELIANCE,TCS</code>
+                            <p>Scan specific stocks</p>
+                        </div>
+                        <button class="api-test-btn" onclick="testEndpoint('/api/scan?symbols=RELIANCE')">Test</button>
+                    </div>
+                    <div class="api-card glass-card">
+                        <div class="api-method get">GET</div>
+                        <div class="api-info">
+                            <code>/api/cron-scan</code>
+                            <p>Background batch scanner</p>
+                        </div>
+                        <button class="api-test-btn" onclick="testEndpoint('/api/cron-scan')">Test</button>
+                    </div>
+                    <div class="api-card glass-card">
+                        <div class="api-method post">POST</div>
+                        <div class="api-info">
+                            <code>/api/webhook</code>
+                            <p>Telegram bot webhook</p>
+                        </div>
+                        <span class="api-internal">Internal</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <span class="footer-logo">📈</span>
+                    <span>Minervini Stock Screener</span>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com" target="_blank">GitHub</a>
+                    <a href="#" onclick="showAbout()">About</a>
+                    <a href="https://t.me/YourBot" target="_blank">Telegram</a>
+                </div>
+                <div class="footer-copy">
+                    © 2026 · Built with ❤️ for Indian Stock Market
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <span class="toast-icon">✓</span>
+        <span class="toast-message" id="toast-message">Success!</span>
+    </div>
+
+    <!-- API Response Modal -->
+    <div class="modal" id="api-modal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3>API Response</h3>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <pre id="api-response"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

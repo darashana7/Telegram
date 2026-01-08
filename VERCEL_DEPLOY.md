@@ -18,7 +18,10 @@ Go to your Vercel project settings and add:
 ```
 TELEGRAM_BOT_TOKEN = your-bot-token
 TELEGRAM_CHAT_IDS = chat-id-1,chat-id-2,chat-id-3
+REDIS_URL = redis://... (from Vercel KV or Upstash)
 ```
+
+**Note:** For reliable scanning, create a Vercel KV (Redis) database and link it to your project. This is required for `scanall`.
 
 #### 2. Deploy to Vercel
 
@@ -41,12 +44,13 @@ After deployment, visit this URL to set the webhook:
 https://your-project.vercel.app/api/set_webhook?action=set
 ```
 
-Or manually set it:
-```bash
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://your-project.vercel.app/api/webhook"}'
-```
+### Full Scan Configuration (Cron Job)
+
+To enable **Scan All**, you must set up a Cron Job to keep the scanner running in the background.
+
+1. Create a `vercel.json` with cron config (already included).
+2. Or use an external cron service (like cron-job.org) to ping this URL every minute (for Free tier) or 10 minutes:
+   `https://your-project.vercel.app/api/cron-scan`
 
 ### API Endpoints
 
@@ -54,28 +58,25 @@ curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
 |----------|--------|-------------|
 | `/api/webhook` | POST | Telegram webhook receiver |
 | `/api/health` | GET | Health check |
-| `/api/scan?symbols=RELIANCE,TCS` | GET | Quick scan stocks |
-| `/api/scan?symbols=RELIANCE&notify=true` | GET | Scan and notify via Telegram |
-| `/api/set_webhook?action=info` | GET | Get current webhook info |
+| `/api/cron-scan` | GET | Background scanner (loops through stocks) |
+| `/api/scan?symbols=RELIANCE` | GET | Quick scan stocks |
 | `/api/set_webhook?action=set` | GET | Auto-set webhook |
-| `/api/set_webhook?action=delete` | GET | Delete webhook |
 
 ### Bot Commands (via Telegram)
 
 - `/start` - Welcome message
-- `/help` - Help message
 - `/check SYMBOL` - Check a stock (e.g., `/check RELIANCE`)
+- `/scanall` - **Start full background scan (~40 mins)**
+- `/list` - View results of last scan
 - `/scan` - Quick scan info
 - `/nse` - NSE stock info
-- Just send a symbol like `TCS` to check it
 
 ### Important Notes
 
-⚠️ **Serverless Limitations:**
-- Vercel functions have a 10-second timeout (free tier)
-- Full stock scans (500+ stocks) cannot run on Vercel
-- Use `/check SYMBOL` for individual stock checks
-- For full scanning, run the local bot: `python bot.py`
+⚠️ **Vercel Limitations & Solutions:**
+- **Timeouts:** Vercel functions timeout after 10s (Free) or 60s (Pro).
+- **Solution:** The bot now splits the 2000+ stock scan into small batches locally. You MUST keep the `/api/cron-scan` endpoint active via Vercel Cron or external ping.
+- **Persistence:** Scan progress is saved in Redis. Ensure `REDIS_URL` is set.
 
 ### Local Development
 
@@ -114,8 +115,39 @@ python bot.py
 │   ├── scan.py               # Stock scan API
 │   ├── set_webhook.py        # Webhook management
 │   └── requirements.txt      # Python dependencies
+├── 📁 public/                 # Frontend Dashboard (NEW!)
+│   ├── index.html            # Main dashboard page
+│   ├── styles.css            # Premium dark theme styling
+│   └── app.js                # Interactive JavaScript
 ├── vercel.json               # Vercel configuration
 ├── bot.py                    # Local polling bot (unchanged)
 ├── main.py                   # Local scheduler (unchanged)
 └── ...
 ```
+
+---
+
+## 🎨 Frontend Dashboard
+
+The project now includes a stunning **frontend dashboard** with:
+
+### Features
+- **Live Health Monitoring** - Real-time API status indicator
+- **Quick Stock Scanner** - Scan up to 10 stocks instantly
+- **Preset Stock Lists** - One-click presets for Nifty 50, Bank Nifty, IT, Pharma, Auto
+- **Beautiful Stock Cards** - Visual pass/fail indicators with metrics
+- **API Testing Panel** - Test endpoints directly from the dashboard
+- **Responsive Design** - Works on desktop, tablet, and mobile
+
+### Design
+- 🌙 **Dark Mode** - Premium dark theme with purple/violet accents
+- ✨ **Glassmorphism** - Modern glass-card effects
+- 🎭 **Micro-Animations** - Smooth transitions and hover effects
+- 📱 **Mobile-First** - Fully responsive layout
+
+### Access
+After deployment, visit your Vercel URL to see the dashboard:
+```
+https://your-project.vercel.app/
+```
+
