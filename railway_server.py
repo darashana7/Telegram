@@ -54,12 +54,18 @@ def home():
 
 @app.route('/api/health')
 def health():
-    """Health check endpoint"""
+    """Health check endpoint with stats"""
+    last_scan_result = scan_state.get('results', [])
+    
     return jsonify({
         "status": "healthy",
         "service": "Minervini Stock Screener (Railway)",
-        "version": "2.0",
-        "timestamp": datetime.now().isoformat()
+        "version": "2.1",
+        "timestamp": datetime.now().isoformat(),
+        "stats": {
+            "qualifying": len(last_scan_result),
+            "last_scan_time": scan_state.get('last_scan', 'Never')
+        }
     })
 
 

@@ -34,14 +34,65 @@ const elements = {
     toast: document.getElementById('toast'),
     toastMessage: document.getElementById('toast-message'),
     apiModal: document.getElementById('api-modal'),
-    apiResponse: document.getElementById('api-response')
+    apiResponse: document.getElementById('api-response'),
+
+    // Progress Tracking
+    scanProgressContainer: document.getElementById('scan-progress-container'),
+    progressPercent: document.getElementById('progress-percent'),
+    progressCurrent: document.getElementById('progress-current'),
+    progressTotal: document.getElementById('progress-total'),
+    progressBarFill: document.getElementById('progress-bar-fill'),
+    progressStatusText: document.getElementById('progress-status-text')
 };
+
+// State
+let pollInterval = null;
 
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
     checkHealth();
+    startStatusPolling();
     setInterval(checkHealth, 30000); // Check every 30 seconds
 });
+
+// ===== Status Polling =====
+function startStatusPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    checkStatus();
+    pollInterval = setInterval(checkStatus, 5000); // Poll every 5 seconds
+}
+
+async function checkStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/status`);
+        const data = await response.json();
+
+        if (data.is_scanning) {
+            updateProgress(data);
+        } else {
+            elements.scanProgressContainer.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error polling status:', error);
+    }
+}
+
+function updateProgress(data) {
+    elements.scanProgressContainer.style.display = 'block';
+
+    const percent = Math.round((data.progress / data.total) * 100) || 0;
+    elements.progressPercent.textContent = `${percent}%`;
+    elements.progressCurrent.textContent = data.progress;
+    elements.progressTotal.textContent = data.total;
+    elements.progressBarFill.style.width = `${percent}%`;
+
+    if (percent === 100) {
+        elements.progressStatusText.textContent = 'Scan complete! Processing results...';
+        setTimeout(() => elements.scanProgressContainer.style.display = 'none', 10000);
+    } else {
+        elements.progressStatusText.textContent = `Analyzing ${data.total} stocks...`;
+    }
+}
 
 // ===== Health Check =====
 async function checkHealth() {
@@ -50,16 +101,20 @@ async function checkHealth() {
         const data = await response.json();
 
         if (data.status === 'healthy') {
-            elements.healthStatus.classList.add('healthy');
-            elements.healthStatus.classList.remove('unhealthy');
-            elements.healthStatus.querySelector('.status-text').textContent = 'Healthy';
+            elements.healthStatus.className = 'status-badge healthy';
+            elements.healthStatus.querySelector('.status-text').textContent = 'Live';
+
+            // Update stats if available
+            if (data.stats) {
+                elements.qualifyingCount.textContent = data.stats.qualifying || '--';
+                elements.lastScan.textContent = data.stats.last_scan_time || 'Recent';
+            }
         } else {
             throw new Error('Unhealthy');
         }
     } catch (error) {
-        elements.healthStatus.classList.add('unhealthy');
-        elements.healthStatus.classList.remove('healthy');
-        elements.healthStatus.querySelector('.status-text').textContent = 'Offline';
+        elements.healthStatus.className = 'status-badge unhealthy';
+        elements.healthStatus.querySelector('.status-text').textContent = 'Backend Offline';
     }
 }
 
@@ -237,7 +292,28 @@ function showAbout() {
     alert('Minervini Stock Screener v2.0\n\nBuilt for NSE Stock Market\nUsing Mark Minervini\'s Trend Template\n\n© 2026');
 }
 
-// ===== Enter Key Handler =====
+// ===== Trigger Full Scan =====
+async function triggerFullScan() {
+    if (!confirm('Start scanning all 2000+ NSE stocks? This will run in the background on Railway.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/scanall`, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.status === 'started' || data.status === 'already_running') {
+            showToast(data.message || 'Full scan running...', 'success');
+            startStatusPolling(); // Ensure polling is active
+        } else {
+            showToast('Failed to start scan', 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+// ===== Pulse Animation Handler =====
 elements.symbolsInput?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         scanStocks();

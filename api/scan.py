@@ -37,7 +37,7 @@ def send_message(chat_id: str, text: str, parse_mode: str = "HTML") -> bool:
 
 
 def quick_check_stock(symbol: str) -> dict:
-    """Quick check a single stock"""
+    """Check a single stock with full 9-point Minervini Trend Template"""
     try:
         import yfinance as yf
         
@@ -47,37 +47,50 @@ def quick_check_stock(symbol: str) -> dict:
         if hist.empty:
             return {'symbol': symbol, 'error': 'No data'}
         
+        # Current Metrics
         current_price = hist['Close'].iloc[-1]
-        sma_50 = hist['Close'].rolling(window=50).mean().iloc[-1] if len(hist) >= 50 else None
-        sma_150 = hist['Close'].rolling(window=150).mean().iloc[-1] if len(hist) >= 150 else None
-        sma_200 = hist['Close'].rolling(window=200).mean().iloc[-1] if len(hist) >= 200 else None
         high_52w = hist['High'].max()
         low_52w = hist['Low'].min()
         
-        score = 0
-        if sma_50 and current_price > sma_50: score += 1
-        if sma_150 and current_price > sma_150: score += 1
-        if sma_200 and current_price > sma_200: score += 1
-        if sma_150 and sma_200 and sma_150 > sma_200: score += 1
+        # Moving Averages
+        sma_50 = hist['Close'].rolling(window=50).mean().iloc[-1] if len(hist) >= 50 else None
+        sma_150 = hist['Close'].rolling(window=150).mean().iloc[-1] if len(hist) >= 150 else None
+        sma_200 = hist['Close'].rolling(window=200).mean().iloc[-1] if len(hist) >= 200 else None
+        
+        # 200 SMA Trend (22 days/1 month ago)
+        sma_200_1m = hist['Close'].rolling(window=200).mean().iloc[-22] if len(hist) >= 222 else None
         
         pct_above_low = ((current_price - low_52w) / low_52w) * 100
         pct_from_high = ((high_52w - current_price) / high_52w) * 100
         
-        if pct_above_low >= 30: score += 1
-        if pct_from_high <= 25: score += 1
+        # 9 Criteria Check
+        criteria = {
+            "1": sma_150 and current_price > sma_150,
+            "2": sma_200 and current_price > sma_200,
+            "3": sma_150 and sma_200 and sma_150 > sma_200,
+            "4": sma_200 and sma_200_1m and sma_200 > sma_200_1m,
+            "5": sma_50 and sma_150 and sma_50 > sma_150,
+            "6": sma_50 and sma_200 and sma_50 > sma_200,
+            "7": sma_50 and current_price > sma_50,
+            "8": pct_above_low >= 30,
+            "9": pct_from_high <= 25
+        }
+        
+        score = sum(1 for v in criteria.values() if v)
+        passes = score == 9
         
         return {
             'symbol': symbol,
-            'price': round(current_price, 2),
+            'price': round(float(current_price), 2),
             'score': score,
-            'sma_50': round(sma_50, 2) if sma_50 else None,
-            'sma_150': round(sma_150, 2) if sma_150 else None,
-            'sma_200': round(sma_200, 2) if sma_200 else None,
-            'high_52w': round(high_52w, 2),
-            'low_52w': round(low_52w, 2),
-            'pct_above_low': round(pct_above_low, 1),
-            'pct_from_high': round(pct_from_high, 1),
-            'passes': score >= 5
+            'passes': passes,
+            'sma_50': round(float(sma_50), 2) if sma_50 else None,
+            'sma_150': round(float(sma_150), 2) if sma_150 else None,
+            'sma_200': round(float(sma_200), 2) if sma_200 else None,
+            'high_52w': round(float(high_52w), 2),
+            'low_52w': round(float(low_52w), 2),
+            'pct_above_low': round(float(pct_above_low), 1),
+            'pct_from_high': round(float(pct_from_high), 1)
         }
     except Exception as e:
         return {'symbol': symbol, 'error': str(e)}
