@@ -4,7 +4,13 @@
  */
 
 // ===== Configuration =====
-const API_BASE = window.location.origin;
+// Railway backend URL - set this to your Railway deployment URL
+// Leave empty to use Vercel's API endpoints (same origin)
+const RAILWAY_URL = 'https://perceptive-harmony-production-5a8a.up.railway.app';
+
+// Use Railway backend if configured, otherwise use same origin (Vercel)
+const API_BASE = RAILWAY_URL || window.location.origin;
+
 const PRESETS = {
     nifty50: 'RELIANCE,TCS,INFY,HDFCBANK,ICICIBANK,BHARTIARTL,ITC,SBIN,LT,AXISBANK',
     banknifty: 'HDFCBANK,ICICIBANK,AXISBANK,KOTAKBANK,SBIN,INDUSINDBK,BANDHANBNK,FEDERALBNK,IDFCFIRSTB,PNB',
@@ -42,7 +48,7 @@ async function checkHealth() {
     try {
         const response = await fetch(`${API_BASE}/api/health`);
         const data = await response.json();
-        
+
         if (data.status === 'healthy') {
             elements.healthStatus.classList.add('healthy');
             elements.healthStatus.classList.remove('unhealthy');
@@ -64,24 +70,24 @@ async function scanStocks() {
         showToast('Please enter stock symbols', 'error');
         return;
     }
-    
+
     // Parse and clean symbols
     const symbols = symbolsRaw.split(',').map(s => s.trim().toUpperCase()).filter(s => s).slice(0, 10);
-    
+
     if (symbols.length === 0) {
         showToast('Please enter valid stock symbols', 'error');
         return;
     }
-    
+
     // Show loading
     elements.scanBtn.disabled = true;
     elements.loadingContainer.style.display = 'flex';
     elements.resultsContainer.style.display = 'none';
-    
+
     try {
         const response = await fetch(`${API_BASE}/api/scan?symbols=${symbols.join(',')}`);
         const data = await response.json();
-        
+
         if (data.success) {
             displayResults(data);
             showToast(`Scanned ${data.scanned} stocks`, 'success');
@@ -104,16 +110,16 @@ function displayResults(data) {
     elements.passingCount.textContent = data.passing;
     elements.qualifyingCount.textContent = data.passing;
     elements.lastScan.textContent = 'Just now';
-    
+
     // Clear previous cards
     elements.stockCards.innerHTML = '';
-    
+
     // Create cards for each result
     data.results.forEach(stock => {
         const card = createStockCard(stock);
         elements.stockCards.appendChild(card);
     });
-    
+
     // Animate cards in
     const cards = elements.stockCards.querySelectorAll('.stock-card');
     cards.forEach((card, index) => {
@@ -131,11 +137,11 @@ function displayResults(data) {
 function createStockCard(stock) {
     const card = document.createElement('div');
     card.className = `stock-card ${stock.passes ? 'passing' : 'failing'}`;
-    
+
     const scoreClass = stock.score >= 5 ? 'high' : stock.score >= 3 ? 'medium' : 'low';
     const pctFromHighClass = stock.pct_from_high <= 25 ? 'positive' : 'negative';
     const pctAboveLowClass = stock.pct_above_low >= 30 ? 'positive' : 'negative';
-    
+
     card.innerHTML = `
         <div class="stock-header">
             <span class="stock-symbol">${stock.symbol}</span>
@@ -161,7 +167,7 @@ function createStockCard(stock) {
             </div>
         </div>
     `;
-    
+
     return card;
 }
 
@@ -179,7 +185,7 @@ async function testEndpoint(endpoint) {
         showToast('Testing endpoint...', 'success');
         const response = await fetch(`${API_BASE}${endpoint}`);
         const data = await response.json();
-        
+
         elements.apiResponse.textContent = JSON.stringify(data, null, 2);
         elements.apiModal.classList.add('show');
     } catch (error) {
@@ -211,7 +217,7 @@ function showToast(message, type = 'success') {
     elements.toast.className = `toast ${type} show`;
     elements.toastMessage.textContent = message;
     elements.toast.querySelector('.toast-icon').textContent = type === 'success' ? '✓' : '✗';
-    
+
     setTimeout(() => {
         elements.toast.classList.remove('show');
     }, 3000);

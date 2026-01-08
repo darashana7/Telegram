@@ -12,7 +12,15 @@
             }
         },
         {
-            "src": "public/**",
+            "src": "public/index.html",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "public/styles.css",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "public/app.js",
             "use": "@vercel/static"
         }
     ],
@@ -46,14 +54,12 @@
             "dest": "/public/app.js"
         },
         {
-            "src": "/(.*)",
+            "src": "/",
             "dest": "/public/index.html"
-        }
-    ],
-    "crons": [
+        },
         {
-            "path": "/api/cron-scan",
-            "schedule": "*/10 * * * *"
+            "src": "/index.html",
+            "dest": "/public/index.html"
         }
     ]
 }
